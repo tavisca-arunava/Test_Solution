@@ -10,6 +10,26 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.All" Version="2.0.8" />
+    <PackageReference Include="Tavisca.Libraries" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Cache" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Configuration" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Configuration.Aws.ParameterStore" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Containers" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Containers.StructureMap" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Containers.StructureMap.Profiling" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Containers.WebApi" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.ExceptionManagement.WebApi" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Logging" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Logging.Sink.Firehose" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Logging.Sink.Redis" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Logging.WebApi" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Profiling" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Profiling.WebApi" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.Serialization" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.WebApi.Formatters" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.WebApi.Middlewares" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Libraries.WebCaller" Version="0.9.0" />
+    <PackageReference Include="Tavisca.Platform.ErrorCodes" Version="1.0.1606.29001" />
   </ItemGroup>
 
   <ItemGroup>
