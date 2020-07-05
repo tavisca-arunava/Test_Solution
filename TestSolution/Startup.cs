@@ -1,16 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Practices.ServiceLocation;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using Tavisca.Common.Plugins.Configuration;
+using Tavisca.Common.Plugins.StructureMap;
+using Tavisca.Platform.Common;
+using Tavisca.Platform.Common.ApplicationEventBus;
+using Tavisca.Platform.Common.Configurations;
+using Tavisca.Platform.Common.Containers;
+using Tavisca.Platform.Common.Core.ServiceLocator;
+using Tavisca.Platform.Common.ExceptionManagement;
+using Tavisca.Platform.Common.Logging;
+using Tavisca.Platform.Common.MemoryStreamPool;
+using Tavisca.Platform.Common.Serialization;
 
 namespace TestSolution
 {
@@ -18,7 +35,7 @@ namespace TestSolution
     {
         public Startup(IHostingEnvironment env)
         {
-            var builder = new ConfigurationBuilder()
+            var builder = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
                             .SetBasePath(env.ContentRootPath)
                             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
@@ -41,6 +58,41 @@ namespace TestSolution
             ThreadPool.SetMinThreads(200, 200);
 
             AddMvcCoreAndItsExtension(services);
+
+            services.AddSingleton<IConfiguration>(Configuration);
+            var serviceLocator = new NetCoreServiceLocator(new ContainerFactory(services), GetModules());
+
+            ServiceLocator.SetLocatorProvider(() => serviceLocator);
+            var configurationProvider = ServiceLocator.Current.GetInstance<Tavisca.Libraries.Configuration.IConfigurationProvider>();
+
+            services.AddResponseCompression(opt =>
+            {
+                opt.Providers.Add<GzipCompressionProvider>();
+                opt.EnableForHttps = true;
+            });
+
+            var gzipCompressionMiddlewareSettings = configurationProvider.GetGlobalConfiguration<GzipCompressionMiddlewareSettings>(Model.Models.Common.KeyStore.Consul.ConfigurationSections.ApplicationSettings, Model.Models.Common.KeyStore.Consul.ApplicationSettings.GzipCompressionMiddlewareSettings);
+            _isCompressionEnabled = gzipCompressionMiddlewareSettings?.IsEnabled ?? false;
+            if (_isCompressionEnabled)  
+            {
+                var compressionLevel = GetCompressionLevel(gzipCompressionMiddlewareSettings);
+                services.Configure<GzipCompressionProviderOptions>(options => options.Level = compressionLevel);
+            }
+
+            SetLoggingThreadPool(configurationProvider);
+            ServicePointManagerSettings();
+
+            Logger.Initialize(ServiceLocator.Current.GetInstance<ILogWriterFactory>());
+
+            InitializeServices();
+
+            var serviceProvider = ServiceLocator.Current.GetInstance<IServiceProvider>();
+            //register config change event handler in application bus
+            var bus = serviceProvider.GetRequiredService<IApplicationEventBus>();
+            InitializeApplicationServiceBus(bus);
+            ExceptionPolicy.Configure(ServiceLocator.Current.GetInstance<IErrorHandler>());
+
+            return serviceProvider;
         }
 
         private static void AddMvcCoreAndItsExtension(IServiceCollection services)
@@ -71,6 +123,37 @@ namespace TestSolution
             .AddCors();
         }
 
+        private IModule[] GetModules()
+        {
+            return new IModule[]{
+                new Module(),
+                //new Core.Module(),
+                //new Service.Module()
+            };
+        }
+
+        private CompressionLevel GetCompressionLevel(GzipCompressionMiddlewareSettings gzipCompressionMiddlewareSettings)
+        {
+            if (gzipCompressionMiddlewareSettings == null)
+                return CompressionLevel.Fastest;
+
+            switch (gzipCompressionMiddlewareSettings.CompressionLevel.ToLower())
+            {
+                case "fastest": return CompressionLevel.Fastest;
+                case "optimal": return CompressionLevel.Optimal;
+                case "nocompression": return CompressionLevel.NoCompression;
+                default: return CompressionLevel.Fastest;
+            }
+        }
+
+        private static void SetLoggingThreadPool(Platform.Common.Configurations.IConfigurationProvider configurationProvider)
+        {
+            AsyncTasks.UseRoundRobinPool();
+
+            var loggingThreadPoolSize = configurationProvider.GetGlobalConfiguration<int>(Model.Models.Common.KeyStore.Consul.ConfigurationSections.Logging, Model.Models.Common.KeyStore.Logging.ThreadPoolSize);
+            loggingThreadPoolSize = (loggingThreadPoolSize == 0) ? Model.Models.Common.KeyStore.Defaults.LoggingThreadPoolSize : loggingThreadPoolSize;
+            AsyncTasks.AddPool("logging", loggingThreadPoolSize);
+        }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
